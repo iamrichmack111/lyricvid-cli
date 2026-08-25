@@ -1,0 +1,12 @@
+{
+  "name": "lyricvid-remotion-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "dependencies": {
+    "@remotion/cli": "4.0.516",
+    "@remotion/media": "4.0.516",
+    "remotion": "4.0.516",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  }
+}
