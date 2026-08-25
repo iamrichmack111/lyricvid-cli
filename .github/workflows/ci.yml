@@ -1,4 +1,4 @@
-name: CI
+name: CI - Test, Build, Render Demo
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  python-package:
+  test-package:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
@@ -16,9 +16,9 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -27,65 +27,55 @@ jobs:
           python -m pip install -U pip build pytest mutagen twine
           python -m pip install --no-deps -e .
 
-      - name: Compile Python
-        run: python -m compileall -q src
+      - name: Test and build
+        run: |
+          python -m compileall -q src
+          pytest -q
+          python -m build
+          twine check dist/*
 
-      - name: Unit tests
-        run: pytest -q
-
-      - name: Build wheel and sdist
-        run: python -m build
-
-      - name: Validate distributions
-        run: twine check dist/*
-
-      - name: Install built CLI smoke test
+      - name: Test installed CLI
         run: |
           python -m pip uninstall -y lyricvid
           python -m pip install --no-deps dist/*.whl
           lyricvid --version
           lyricvid --help
 
-      - name: Upload package artifacts
+      - name: Upload package
         if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: lyricvid-python-dist
+          name: lyricvid-installable-package
           path: dist/*
 
-  remotion-runtime:
-    name: Remotion runtime
+  render-demo:
+    name: Render real demo video
+    needs: test-package
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: src/lyricvid/remotion_runtime
-
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
+          package-manager-cache: false
 
-      - name: Validate pinned Remotion versions
+      - name: Install LyricVid
+        run: python -m pip install --no-deps -e .
+
+      - name: Render MP4
         run: |
-          node - <<'NODE'
-          const pkg = require('./package.json');
-          const d = pkg.dependencies;
-          const versions = new Set([
-            d.remotion,
-            d['@remotion/cli'],
-            d['@remotion/media'],
-          ]);
-          if (versions.size !== 1) {
-            throw new Error(`Remotion packages must match: ${[...versions].join(', ')}`);
-          }
-          console.log(`Remotion packages aligned at ${[...versions][0]}`);
-          NODE
+          lyricvid --demo -o ci-demo --jobs 2 --crf 30
+          test -s ci-demo/lyricvid-demo.mp4
 
-      - name: Install runtime dependencies
-        run: npm install --no-audit --no-fund
-
-      - name: Bundle smoke test
-        run: npx remotion compositions src/index.ts
+      - name: Upload rendered video
+        uses: actions/upload-artifact@v7
+        with:
+          name: lyricvid-demo-video
+          path: ci-demo/lyricvid-demo.mp4
+          if-no-files-found: error
