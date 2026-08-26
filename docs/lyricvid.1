@@ -1,0 +1,290 @@
+.TH LYRICVID 1 "August 2026" "LyricVid 0.8.2" "User Commands"
+.SH NAME
+lyricvid \- create Whisper-aligned Remotion lyric videos and upload them to YouTube
+.SH SYNOPSIS
+.B lyricvid
+.RI [ folder ]
+.RI [ options ]
+.br
+.B lyricvid styles
+.br
+.B lyricvid jobs
+.br
+.B lyricvid upload
+.I video
+.B --title
+.I title
+.RI [ upload-options ]
+.SH DESCRIPTION
+LyricVid is a command-line video composition pipeline for music, lyric videos, narrated visualizers, technical explainers, and social-media variants. It combines authored lyric metadata, ffprobe, Mutagen, faster-whisper, sequence alignment, Remotion, FFmpeg, optional artwork and voice-over, detached background jobs, and OAuth-based YouTube publishing.
+.PP
+Authored lyrics are treated as the displayed source of truth whenever available. Whisper is used primarily as an acoustic timing layer. This allows the rendered video to preserve exact spelling, punctuation, capitalization, and authored section structure while using the performed audio to determine timing.
+.PP
+By default LyricVid scans the current directory and writes results to a lyric-videos directory beneath the input folder.
+.SH LYRIC SOURCE ORDER
+With
+.B --lyrics-source auto
+LyricVid prefers exact authored lyrics before falling back to Whisper-only transcription:
+.PP
+1. lyric metadata discovered by ffprobe / embedded media tags
+.br
+2. embedded metadata read by Mutagen
+.br
+3. matching sidecar lyric files
+.br
+4. Whisper transcription when authored lyrics are unavailable
+.PP
+Whisper timing anchors are sequence-aligned to authored tokens. Unmatched authored tokens may be interpolated between reliable anchors. Conservative non-overlapping display windows are used to reduce brief lyric flashes between actual sung lines.
+.SH INPUTS
+Supported audio includes MP3, WAV, M4A, FLAC, AAC, OGG, and OPUS. Artwork may be PNG, JPG/JPEG, or WebP. Motion backgrounds may be MP4, MOV, WebM, or MKV.
+.SH PRIMARY OPTIONS
+.TP
+.BI --model " MODEL"
+Select the faster-whisper model. Default: small.en. Larger models can improve recognition at the cost of memory and render preparation time.
+.TP
+.BI --language " CODE"
+Language code or auto. Default: en.
+.TP
+.BI --lyrics-source " auto|ffprobe|embedded|sidecar|whisper"
+Select lyric text source policy.
+.TP
+.BI --image " FILE"
+Use artwork in the composition.
+.TP
+.BI --artist " NAME"
+Artist displayed in the composition. If omitted, LyricVid may use embedded artist metadata.
+.TP
+.BI --brand " TEXT"
+Top-left brand label. Default: Richmack Radio.
+.TP
+.BI --intro-seconds " N"
+Prepend an artwork intro for N seconds. Audio and lyric timing are delayed so the song remains synchronized after the intro.
+.TP
+.BI --outro-seconds " N"
+Append an outro after the song.
+.TP
+.BI --outro-image " FILE"
+Artwork for the outro. Defaults to the main --image when omitted.
+.TP
+.BI --outro-text " TEXT"
+Outro text. Default: Thanks for listening.
+.TP
+.BI --image-mode " background|card|logo"
+Select artwork presentation mode.
+.TP
+.BI --background-video " FILE"
+Use an explicit looping motion background.
+.TP
+.BI --voiceover " FILE"
+Layer narration or another voice track over the music.
+.TP
+.BI --music-volume " 0.0-1.0"
+Music gain multiplier. Default: 1.0.
+.TP
+.BI --voiceover-volume " 0.0-1.0"
+Voice-over gain multiplier. Default: 1.0.
+.TP
+.BI --layout " cyber|minimal|terminal"
+Base Remotion layout.
+.TP
+.BI --style " NAME"
+Apply a preset that controls layout, theme, and artwork treatment. Use lyricvid styles to list available presets.
+.TP
+.BI --format " landscape|short|square"
+Output canvas. landscape=1280x720, short=1080x1920, square=1080x1080.
+.TP
+.BI --device " cpu|cuda|auto"
+Inference device.
+.TP
+.BI --compute-type " TYPE"
+Whisper compute type. Default: int8. float16 is commonly used with CUDA.
+.TP
+.BI --threads " N"
+Worker threads used for CPU work.
+.TP
+.BI --jobs " N"
+Parallel job count for batch operation.
+.TP
+.BI --crf " N"
+H.264 constant-rate-factor quality value. Lower values increase quality and file size. Default: 24.
+.TP
+.BI -o " DIR", " --output " DIR
+Set output directory.
+.TP
+.B --recursive
+Search recursively for supported audio.
+.TP
+.B --force
+Overwrite existing rendered MP4 files without necessarily discarding cached Whisper alignment.
+.TP
+.B --retranscribe
+Ignore cached transcript/alignment data and run Whisper again.
+.TP
+.B --transcribe-only
+Perform lyric extraction and timing alignment without rendering the final video.
+.TP
+.B --studio
+Prepare the project and open Remotion Studio for interactive preview.
+.TP
+.B --lyrics-info
+Show discovered lyric sources without running Whisper.
+.TP
+.B --doctor
+Check required external dependencies and runtime paths.
+.TP
+.B --clean-cache
+Remove LyricVid runtime and transcript caches.
+.TP
+.B --detach, --background-job
+Relaunch the current operation in a detached process. Output is written under ~/.cache/lyricvid/jobs and survives terminal closure or SSH disconnect.
+.TP
+.B --version
+Print version.
+.SH STYLE PRESETS
+Current presets include cyberpunk, terminal-green, daemon-red, root-violet, system-amber, network-teal, neon-pink, minimal-clean, podcast, explainer, and metro-cinematic.
+.PP
+.B metro-cinematic
+uses a restrained music-video treatment with album art, soft metro motion, film-grain styling, reduced HUD clutter, and neon accents.
+.SH SECTION LABELS
+Authored lines that represent structural labels such as [Verse 1], [Chorus], [Bridge], and [Outro] are rendered as section labels rather than sung lyric lines. Their timing is kept separate from karaoke word highlighting.
+.SH DETACHED JOBS
+Run a long render in the background:
+.PP
+.nf
+lyricvid . --style metro-cinematic --detach
+.fi
+.PP
+List recent jobs:
+.PP
+.nf
+lyricvid jobs
+.fi
+.PP
+Each detached job has metadata and a log under ~/.cache/lyricvid/jobs. The start message prints the exact tail -f command for following progress.
+.SH YOUTUBE UPLOAD
+The upload command publishes an existing video with YouTube Data API v3 and OAuth 2.0.
+.PP
+.nf
+lyricvid upload video.mp4 \\
+  --title "Artist - Song | Official Lyric Video" \\
+  --description-file description.md \\
+  --tags "artist,song,lyric video" \\
+  --public
+.fi
+.PP
+Uploads are private by default. Use --public or --unlisted to change visibility.
+.SH YOUTUBE OPTIONS
+.TP
+.BI --title " TEXT"
+Required title. YouTube maximum: 100 characters.
+.TP
+.BI --description " TEXT"
+Inline description. Mutually exclusive with --description-file.
+.TP
+.BI --description-file " FILE"
+Read UTF-8 description text or Markdown from a file. Use - to read stdin. If neither description option is supplied, LyricVid also checks video.description.txt, video.description.md, and video.youtube.txt sidecars.
+.TP
+.BI --tags " CSV"
+Comma-separated tags.
+.TP
+.BI --category " ID"
+YouTube category ID. Default: 22.
+.TP
+.B --public
+Publish publicly.
+.TP
+.B --unlisted
+Publish as unlisted.
+.TP
+.BI --credentials " FILE"
+OAuth desktop-client JSON. Default: .secrets/youtube-oauth.json relative to the current working directory.
+.TP
+.BI --token " FILE"
+Cached OAuth token. Default: .secrets/youtube-token.json.
+.TP
+.BI --chunk-mb " N"
+Resumable upload chunk size in MiB. Default: 8.
+.TP
+.B --dry-run
+Validate and print upload metadata without authenticating or uploading.
+.TP
+.B --detach
+Perform an already-authenticated upload as a detached background job.
+.SH OAUTH SECURITY
+Never commit OAuth client-secret JSON or token files. Keep .secrets ignored by Git and restrict local credential permissions where possible.
+.SH YOUTUBE QUALITY NOTE
+A newly uploaded HD video can initially appear at 360p while YouTube finishes higher-resolution transcodes. LyricVid uploads the source MP4; final playback resolutions are generated asynchronously by YouTube.
+.SH EXAMPLES
+Render the current folder with a cyberpunk preset:
+.PP
+.nf
+lyricvid . --style cyberpunk
+.fi
+.PP
+Metro-cinematic single with intro and outro:
+.PP
+.nf
+lyricvid . \\
+  --style metro-cinematic \\
+  --image cover.png \\
+  --artist "Esoterica" \\
+  --brand "Richmack Radio" \\
+  --intro-seconds 5 \\
+  --outro-seconds 7 \\
+  --outro-text "COMPETE FOR YOU - ESOTERICA" \\
+  --detach
+.fi
+.PP
+Narrated explainer with reduced music volume:
+.PP
+.nf
+lyricvid . \\
+  --style explainer \\
+  --voiceover narration.mp3 \\
+  --music-volume 0.25 \\
+  --voiceover-volume 1.0
+.fi
+.PP
+Vertical social version:
+.PP
+.nf
+lyricvid . --style neon-pink --format short
+.fi
+.PP
+Inspect authored lyrics only:
+.PP
+.nf
+lyricvid . --lyrics-info
+.fi
+.PP
+Force fresh acoustic alignment:
+.PP
+.nf
+lyricvid . --retranscribe --force
+.fi
+.SH FILES
+.TP
+.I ~/.cache/lyricvid/
+Shared runtime and transcript cache.
+.TP
+.I ~/.cache/lyricvid/jobs/
+Detached-job logs and metadata.
+.TP
+.I lyric-videos/alignment-report.json
+Per-track lyric-alignment QA report.
+.TP
+.I .secrets/youtube-oauth.json
+Default YouTube OAuth client file.
+.TP
+.I .secrets/youtube-token.json
+Default cached YouTube OAuth token.
+.SH DIAGNOSTICS
+Use lyricvid --doctor to verify Node, npm, ffprobe, Python, cache paths, and runtime paths. For detached jobs use lyricvid jobs and tail the printed log file.
+.PP
+If first-run Whisper output appears idle while CPU usage is high, model download or acoustic inference may still be active. Hugging Face can warn about unauthenticated requests when no HF_TOKEN is configured.
+.SH DOCUMENTATION AS CODE
+The repository contains docs/architecture.d2. Render it with scripts/render-docs.sh after installing D2. README screenshots can be generated from a completed MP4 with scripts/capture-readme-frames.mjs and Playwright.
+.SH SEE ALSO
+ffmpeg(1), ffprobe(1), node(1), npm(1), python3(1)
+.SH LICENSE
+MIT.

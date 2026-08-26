@@ -16,11 +16,41 @@ from . import __version__
 CACHE_ROOT = Path.home() / ".cache" / "lyricvid"
 RUNTIME_ROOT = CACHE_ROOT / "remotion-runtime"
 TRANSCRIPT_CACHE = CACHE_ROOT / "transcripts"
-RUNTIME_VERSION = "0.2.0-remotion-4.0.516"
+RUNTIME_VERSION = "0.7.0-remotion-4.0.516"
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg", ".opus"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv"}
+
+JOB_ROOT = CACHE_ROOT / "jobs"
+
+STYLE_PRESETS = {
+    "cyberpunk": {"layout": "cyber", "theme": 0, "image_mode": "background"},
+    "terminal-green": {"layout": "terminal", "theme": 1, "image_mode": "background"},
+    "daemon-red": {"layout": "cyber", "theme": 2, "image_mode": "background"},
+    "root-violet": {"layout": "cyber", "theme": 3, "image_mode": "background"},
+    "system-amber": {"layout": "cyber", "theme": 4, "image_mode": "background"},
+    "network-teal": {"layout": "cyber", "theme": 5, "image_mode": "background"},
+    "neon-pink": {"layout": "cyber", "theme": 6, "image_mode": "background"},
+    "minimal-clean": {"layout": "minimal", "theme": 0, "image_mode": "card"},
+    "podcast": {"layout": "minimal", "theme": 3, "image_mode": "card"},
+    "explainer": {"layout": "minimal", "theme": 5, "image_mode": "logo"},
+    "metro-cinematic": {"layout": "minimal", "theme": 6, "image_mode": "background"},
+}
+
+STYLE_DESCRIPTIONS = {
+    "cyberpunk": "Blue/violet neon, grid, particles, high-energy lyric treatment",
+    "terminal-green": "Monospace terminal look with green/cyan system styling",
+    "daemon-red": "Red/orange aggressive ops and infrastructure aesthetic",
+    "root-violet": "Violet/magenta neon with a darker cinematic feel",
+    "system-amber": "Amber/orange retro-computing and command-line mood",
+    "network-teal": "Teal/blue networking and cloud-infrastructure look",
+    "neon-pink": "Pink/cyan social-first neon styling",
+    "minimal-clean": "Reduced particles and grid with clean centered artwork",
+    "podcast": "Clean card artwork for narration, commentary, or audio shows",
+    "explainer": "Minimal technical explainer layout with logo/diagram emphasis",
+    "metro-cinematic": "Cinematic album-art treatment with soft metro motion, film grain, and restrained neon",
+}
 
 THEMES = [
     {"accent": "#52F7FF", "accent2": "#7C5CFF", "name": "CYBER BLUE"},
@@ -41,6 +71,27 @@ def slugify(value: str) -> str:
 def title_for(path: Path) -> str:
     # Clean common duplicate suffixes such as "Song(3).mp3".
     return re.sub(r"\s*\(\d+\)$", "", path.stem).strip()
+
+
+def artist_for(path: Path) -> str | None:
+    """Best-effort artist lookup from common audio tags."""
+    try:
+        from mutagen import File as MutagenFile
+        media = MutagenFile(path, easy=True)
+        if media and getattr(media, "tags", None):
+            for key in ("artist", "albumartist", "performer"):
+                value = media.tags.get(key)
+                if isinstance(value, (list, tuple)) and value:
+                    text = str(value[0]).strip()
+                    if text:
+                        return text
+                elif value:
+                    text = str(value).strip()
+                    if text:
+                        return text
+    except Exception:
+        pass
+    return None
 
 
 def require_program(name: str) -> str:
@@ -225,6 +276,62 @@ def lyrics_from_tags(tags) -> tuple[str | None, str | None]:
     return None, None
 
 
+def ffprobe_lyrics(song: Path) -> tuple[str | None, str | None]:
+    """Read authored lyric metadata through ffprobe when available.
+
+    ffprobe does not transcribe audio; it exposes container/tag metadata.  We
+    then use Whisper to listen to the performance and align that authored text
+    to real word timings.
+    """
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return None, None
+
+    try:
+        result = subprocess.run(
+            [
+                ffprobe,
+                "-v", "error",
+                "-show_entries", "format_tags:stream_tags",
+                "-of", "json",
+                str(song),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(result.stdout or "{}")
+    except Exception:
+        return None, None
+
+    preferred = {
+        "lyrics", "unsyncedlyrics", "unsynced_lyrics", "lyric", "©lyr",
+        "wm/lyrics", "syncedlyrics", "synced_lyrics",
+    }
+    tag_sets = []
+    fmt = payload.get("format") or {}
+    if isinstance(fmt.get("tags"), dict):
+        tag_sets.append(fmt["tags"])
+    for stream in payload.get("streams") or []:
+        if isinstance(stream, dict) and isinstance(stream.get("tags"), dict):
+            tag_sets.append(stream["tags"])
+
+    # Prefer explicit lyric keys, then use any metadata key containing lyric.
+    for tags in tag_sets:
+        for key, value in tags.items():
+            if str(key).casefold() in preferred:
+                cleaned = _clean_lyrics_text(value)
+                if cleaned:
+                    return cleaned, f"ffprobe:{key}"
+    for tags in tag_sets:
+        for key, value in tags.items():
+            if "lyric" in str(key).casefold():
+                cleaned = _clean_lyrics_text(value)
+                if cleaned:
+                    return cleaned, f"ffprobe:{key}"
+    return None, None
+
+
 def embedded_lyrics(song: Path) -> tuple[str | None, str | None]:
     from mutagen import File as MutagenFile
 
@@ -268,9 +375,18 @@ def sidecar_lyrics(song: Path) -> tuple[str | None, str | None]:
 
 
 def exact_lyrics(song: Path, source_policy: str = "auto") -> tuple[str | None, str | None]:
-    """Resolve authored lyrics. Auto prefers embedded metadata over sidecars."""
+    """Resolve authored lyrics, then let Whisper provide acoustic timing.
+
+    auto priority: ffprobe metadata -> Mutagen metadata -> sidecar -> Whisper.
+    """
     if source_policy == "whisper":
         return None, None
+    if source_policy in ("auto", "ffprobe"):
+        text, source = ffprobe_lyrics(song)
+        if text:
+            return text, source
+        if source_policy == "ffprobe":
+            return None, None
     if source_policy in ("auto", "embedded"):
         text, source = embedded_lyrics(song)
         if text:
@@ -349,6 +465,27 @@ def _authored_lyric_tokens(lyrics_text: str) -> tuple[list[dict], list[str]]:
     return tokens, lines
 
 
+def _section_markers(lyrics_text: str) -> list[tuple[int, str]]:
+    """Return (next lyric line index, section label) for [Verse], [Chorus], etc."""
+    markers: list[tuple[int, str]] = []
+    lyric_line_index = 0
+    for raw_line in lyrics_text.splitlines():
+        line = raw_line.strip()
+        line = re.sub(r"^(?:\[\d{1,2}:\d{2}(?:\.\d+)?\])+", "", line).strip()
+        if not line:
+            continue
+        m = re.fullmatch(r"\[([^\]]+)\]", line) or re.fullmatch(r"\(([^\)]+)\)", line)
+        if m:
+            label = m.group(1).strip()
+            # Only keep sensible section metadata, not arbitrary parentheticals.
+            if re.search(r"(?i)verse|chorus|bridge|intro|outro|hook|pre[- ]?chorus|refrain|break|interlude", label):
+                markers.append((lyric_line_index, label))
+            continue
+        if any(_normalize_alignment_token(tok) for tok in re.findall(r"\S+", line)):
+            lyric_line_index += 1
+    return markers
+
+
 def align_exact_lyrics(
     lyrics_text: str,
     whisper_words: list[dict],
@@ -365,7 +502,7 @@ def align_exact_lyrics(
         timed = []
         for i, token in enumerate(authored):
             start = i * step
-            timed.append({**token, "start": start, "end": max(start + 0.04, (i + 1) * step)})
+            timed.append({**token, "start": start, "end": max(start + 0.04, (i + 1) * step), "matched": False})
     else:
         lyric_norm = [item["norm"] for item in authored]
         whisper_norm = [_normalize_alignment_token(item["text"]) for item in whisper_words]
@@ -384,6 +521,7 @@ def align_exact_lyrics(
                 **authored[lyric_i],
                 "start": start,
                 "end": max(float(word["end"]), start + 0.04),
+                "matched": True,
             }
 
         anchors = sorted(mapping)
@@ -419,13 +557,20 @@ def align_exact_lyrics(
                     **authored[lyric_i],
                     "start": max(0.0, start),
                     "end": max(start + 0.04, end),
+                    "matched": False,
                 }
 
         # mypy-friendly narrowing; every slot is filled above.
         timed = [item for item in timed if item is not None]
 
     grouped: list[dict] = []
+    section_markers = _section_markers(lyrics_text)
+    active_section: str | None = None
+    marker_i = 0
     for line_index, exact_line in enumerate(original_lines):
+        while marker_i < len(section_markers) and section_markers[marker_i][0] <= line_index:
+            active_section = section_markers[marker_i][1]
+            marker_i += 1
         words = [item for item in timed if item["line"] == line_index]
         if not words:
             continue
@@ -434,6 +579,8 @@ def align_exact_lyrics(
                 "start": words[0]["start"],
                 "end": max(words[-1]["end"], words[0]["start"] + 0.04),
                 "text": exact_line,
+                "section": active_section,
+                "timingConfidence": "acoustic" if any(word.get("matched") for word in words) else "inferred",
                 "words": [
                     {
                         "text": word["text"],
@@ -444,6 +591,17 @@ def align_exact_lyrics(
                 ],
             }
         )
+
+    # Display windows are conservative and non-overlapping. This suppresses
+    # very short inferred lyric lines that can otherwise flash in silent gaps.
+    for i, line in enumerate(grouped):
+        prev_end = grouped[i - 1]["end"] if i > 0 else 0.0
+        next_start = grouped[i + 1]["start"] if i + 1 < len(grouped) else song_duration
+        display_start = max(float(line["start"]) - 0.04, (prev_end + float(line["start"])) / 2 if i > 0 else 0.0)
+        display_end = min(float(line["end"]) + 0.16, (float(line["end"]) + next_start) / 2 if i + 1 < len(grouped) else song_duration)
+        line["displayStart"] = max(0.0, display_start)
+        line["displayEnd"] = max(line["displayStart"] + 0.04, display_end)
+        line["suppressFlash"] = line.get("timingConfidence") == "inferred" and (line["displayEnd"] - line["displayStart"]) < 0.55
 
     matched = 0
     if whisper_words:
@@ -598,7 +756,7 @@ def transcribe_song(
     return group_words(words), len(words), None, 0.0, 0
 
 def clean_public(runtime: Path) -> None:
-    for subdir in ("audio", "images", "video"):
+    for subdir in ("audio", "images", "video", "overlays"):
         directory = runtime / "public" / subdir
         directory.mkdir(parents=True, exist_ok=True)
         for child in directory.iterdir():
@@ -639,6 +797,39 @@ def prepare(args) -> tuple[Path, list[dict], Path]:
         shutil.copy2(video, dest)
         copied_videos.append(dest)
 
+    # Explicit media options override folder auto-discovery.
+    explicit_image: Path | None = None
+    if getattr(args, "image", None):
+        src = Path(args.image).expanduser().resolve()
+        if not src.is_file() or src.suffix.lower() not in IMAGE_EXTENSIONS:
+            raise SystemExit(f"Invalid --image file: {src}")
+        explicit_image = runtime / "public" / "images" / f"explicit{src.suffix.lower()}"
+        shutil.copy2(src, explicit_image)
+
+    explicit_outro_image: Path | None = None
+    if getattr(args, "outro_image", None):
+        src = Path(args.outro_image).expanduser().resolve()
+        if not src.is_file() or src.suffix.lower() not in IMAGE_EXTENSIONS:
+            raise SystemExit(f"Invalid --outro-image file: {src}")
+        explicit_outro_image = runtime / "public" / "images" / f"outro{src.suffix.lower()}"
+        shutil.copy2(src, explicit_outro_image)
+
+    explicit_background: Path | None = None
+    if getattr(args, "background_video", None):
+        src = Path(args.background_video).expanduser().resolve()
+        if not src.is_file() or src.suffix.lower() not in VIDEO_EXTENSIONS:
+            raise SystemExit(f"Invalid --background-video file: {src}")
+        explicit_background = runtime / "public" / "video" / f"explicit{src.suffix.lower()}"
+        shutil.copy2(src, explicit_background)
+
+    voiceover: Path | None = None
+    if getattr(args, "voiceover", None):
+        src = Path(args.voiceover).expanduser().resolve()
+        if not src.is_file() or src.suffix.lower() not in AUDIO_EXTENSIONS:
+            raise SystemExit(f"Invalid --voiceover file: {src}")
+        voiceover = runtime / "public" / "audio" / f"voiceover{src.suffix.lower()}"
+        shutil.copy2(src, voiceover)
+
     cover: Path | None = None
     for image in copied_images:
         if "cover" in image.name.lower():
@@ -646,6 +837,8 @@ def prepare(args) -> tuple[Path, list[dict], Path]:
             break
     if cover is None and copied_images:
         cover = copied_images[0]
+    if explicit_image is not None:
+        cover = explicit_image
 
     print("\n" + "=" * 68)
     print("LYRICVID")
@@ -695,20 +888,45 @@ def prepare(args) -> tuple[Path, list[dict], Path]:
         )
 
         background = None
-        if copied_videos:
+        if explicit_background is not None:
+            background = f"video/{explicit_background.name}"
+        elif copied_videos:
             chosen = copied_videos[(index - 1) % len(copied_videos)]
             background = f"video/{chosen.name}"
 
-        theme = THEMES[(index - 1) % len(THEMES)]
+        preset = STYLE_PRESETS.get(getattr(args, "style", "auto"))
+        if preset:
+            theme = THEMES[preset["theme"]]
+            layout = preset["layout"]
+            image_mode = preset["image_mode"]
+            visual_style = getattr(args, "style", "cyberpunk")
+        else:
+            theme = THEMES[(index - 1) % len(THEMES)]
+            layout = getattr(args, "layout", "cyber")
+            image_mode = getattr(args, "image_mode", "background")
+            visual_style = "auto"
         manifest.append(
             {
                 "id": f"Track-{index:02d}-{track_slug}",
                 "index": index,
                 "slug": track_slug,
                 "title": title,
+                "artist": getattr(args, "artist", None) or artist_for(song) or "",
+                "brand": getattr(args, "brand", "Richmack Radio"),
+                "introSeconds": max(0.0, float(getattr(args, "intro_seconds", 0.0))),
+                "outroSeconds": max(0.0, float(getattr(args, "outro_seconds", 0.0))),
+                "outroText": getattr(args, "outro_text", "Thanks for listening"),
+                "outroImage": f"images/{explicit_outro_image.name}" if explicit_outro_image else (f"images/{cover.name}" if cover else None),
                 "audio": f"audio/{audio_dest.name}",
                 "cover": f"images/{cover.name}" if cover else None,
                 "background": background,
+                "voiceover": f"audio/{voiceover.name}" if voiceover else None,
+                "musicVolume": float(getattr(args, "music_volume", 1.0)),
+                "voiceoverVolume": float(getattr(args, "voiceover_volume", 1.0)),
+                "imageMode": image_mode,
+                "layout": layout,
+                "visualStyle": visual_style,
+                "format": getattr(args, "format", "landscape"),
                 "duration": duration,
                 "theme": theme,
                 "lyricsSource": lyric_source,
@@ -801,7 +1019,7 @@ def doctor() -> int:
     print(f"LyricVid {__version__}")
     print("=" * 52)
     failures = 0
-    for program in ("node", "npm"):
+    for program in ("node", "npm", "ffprobe"):
         path = shutil.which(program)
         if path:
             print(f"✓ {program:<8} {path}")
@@ -849,10 +1067,225 @@ def lyrics_info(folder_value: str, recursive: bool, source_policy: str) -> int:
     return 0
 
 
+def youtube_upload_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="lyricvid upload", description="Upload an MP4 to YouTube using OAuth.")
+    parser.add_argument("video", help="Video file to upload")
+    parser.add_argument("--title", required=True)
+    description = parser.add_mutually_exclusive_group()
+    description.add_argument("--description", help="Inline YouTube description")
+    description.add_argument(
+        "--description-file",
+        help="Read YouTube description from a UTF-8 text/Markdown file (use '-' for stdin)",
+    )
+    parser.add_argument("--tags", default="", help="Comma-separated tags")
+    parser.add_argument("--category", default="22", help="YouTube category id (default: 22)")
+    privacy = parser.add_mutually_exclusive_group()
+    privacy.add_argument("--public", action="store_true")
+    privacy.add_argument("--unlisted", action="store_true")
+    parser.add_argument("--credentials", default=".secrets/youtube-oauth.json")
+    parser.add_argument("--token", default=".secrets/youtube-token.json")
+    parser.add_argument(
+        "--chunk-mb", type=int, default=8,
+        help="Resumable upload chunk size in MiB (default: 8)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Validate and print upload metadata without sending the video",
+    )
+    parser.add_argument(
+        "--detach", "--background-job", action="store_true",
+        help="Upload independently in the background and write a job log",
+    )
+    return parser
+
+
+def _youtube_description(args, video: Path) -> tuple[str, str]:
+    """Resolve description from CLI, explicit file, or a video sidecar."""
+    if args.description_file:
+        if args.description_file == "-":
+            return sys.stdin.read().strip(), "stdin"
+        path = Path(args.description_file).expanduser().resolve()
+        if not path.is_file():
+            raise SystemExit(f"Description file not found: {path}")
+        return path.read_text(encoding="utf-8", errors="replace").strip(), str(path)
+
+    if args.description is not None:
+        return args.description.strip(), "--description"
+
+    candidates = [
+        video.with_suffix(".description.txt"),
+        video.with_suffix(".description.md"),
+        video.parent / f"{video.stem}.youtube.txt",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path.read_text(encoding="utf-8", errors="replace").strip(), str(path)
+    return "", "none"
+
+
+def upload_youtube(args) -> int:
+    video = Path(args.video).expanduser().resolve()
+    if not video.is_file():
+        raise SystemExit(f"Video not found: {video}")
+
+    description, description_source = _youtube_description(args, video)
+    if len(description) > 5000:
+        raise SystemExit(f"YouTube description is {len(description)} characters; maximum is 5000")
+    if len(args.title) > 100:
+        raise SystemExit(f"YouTube title is {len(args.title)} characters; maximum is 100")
+
+    privacy = "public" if args.public else "unlisted" if args.unlisted else "private"
+    body = {
+        "snippet": {
+            "title": args.title,
+            "description": description,
+            "tags": [t.strip() for t in args.tags.split(",") if t.strip()],
+            "categoryId": str(args.category),
+        },
+        "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
+    }
+
+    print(f"Description: {description_source} ({len(description)} chars)")
+    if args.dry_run:
+        print(json.dumps({
+            "video": str(video),
+            "title": args.title,
+            "description_source": description_source,
+            "description": description,
+            "tags": body["snippet"]["tags"],
+            "categoryId": body["snippet"]["categoryId"],
+            "privacyStatus": privacy,
+        }, indent=2))
+        return 0
+
+    credentials_path = Path(args.credentials).expanduser().resolve()
+    token_path = Path(args.token).expanduser().resolve()
+    if not credentials_path.is_file():
+        raise SystemExit(f"OAuth credentials not found: {credentials_path}")
+
+    try:
+        from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
+        from google_auth_oauthlib.flow import InstalledAppFlow
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
+    except ImportError as exc:
+        raise SystemExit("YouTube support is not installed. Reinstall/upgrade lyricvid.") from exc
+
+    scopes = ["https://www.googleapis.com/auth/youtube.upload"]
+    creds = None
+    if token_path.exists():
+        try:
+            creds = Credentials.from_authorized_user_file(str(token_path), scopes)
+        except Exception:
+            creds = None
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), scopes)
+            creds = flow.run_local_server(port=0, open_browser=True)
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        token_path.write_text(creds.to_json(), encoding="utf-8")
+        try:
+            token_path.chmod(0o600)
+        except OSError:
+            pass
+
+    youtube = build("youtube", "v3", credentials=creds)
+    chunk_bytes = max(1, int(args.chunk_mb)) * 1024 * 1024
+    request = youtube.videos().insert(
+        part="snippet,status",
+        body=body,
+        media_body=MediaFileUpload(str(video), chunksize=chunk_bytes, resumable=True),
+    )
+    print(f"Uploading {video.name} as {privacy}...")
+    response = None
+    while response is None:
+        status, response = request.next_chunk()
+        if status:
+            print(f"  {int(status.progress() * 100)}%")
+    print(f"✓ Uploaded: https://youtu.be/{response['id']}")
+    return 0
+
+
+def detach_current_command() -> int:
+    """Relaunch this CLI in a detached process that survives terminal closure."""
+    import datetime
+
+    JOB_ROOT.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    job_id = f"{stamp}-{os.getpid()}"
+    log_path = JOB_ROOT / f"{job_id}.log"
+    meta_path = JOB_ROOT / f"{job_id}.json"
+
+    child_args = [a for a in sys.argv[1:] if a not in {"--detach", "--background-job"}]
+    command = [sys.executable, "-m", "lyricvid.cli", *child_args]
+    with log_path.open("ab", buffering=0) as log:
+        proc = subprocess.Popen(
+            command,
+            cwd=Path.cwd(),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            env={**os.environ, "LYRICVID_DETACHED": "1"},
+        )
+
+    meta_path.write_text(json.dumps({
+        "job_id": job_id,
+        "pid": proc.pid,
+        "cwd": str(Path.cwd()),
+        "command": command,
+        "log": str(log_path),
+    }, indent=2) + "\
+", encoding="utf-8")
+    print(f"✓ Background job started: {job_id}")
+    print(f"  PID: {proc.pid}")
+    print(f"  Log: {log_path}")
+    print(f"  Watch: tail -f {log_path}")
+    return 0
+
+
+def list_styles() -> int:
+    print("LyricVid visual styles")
+    print("=" * 72)
+    for name in STYLE_PRESETS:
+        print(f"{name:<18} {STYLE_DESCRIPTIONS.get(name, '')}")
+    print("\nUse: lyricvid . --style <name>")
+    return 0
+
+
+def list_background_jobs() -> int:
+    JOB_ROOT.mkdir(parents=True, exist_ok=True)
+    metas = sorted(JOB_ROOT.glob("*.json"), reverse=True)
+    if not metas:
+        print("No LyricVid background jobs found.")
+        return 0
+    for meta in metas[:30]:
+        try:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+            pid = int(data.get("pid", 0))
+            alive = False
+            if pid > 0:
+                try:
+                    os.kill(pid, 0)
+                    alive = True
+                except OSError:
+                    pass
+            status = "RUNNING" if alive else "FINISHED"
+            print(f"{data.get('job_id')}  {status:8}  pid={pid}  log={data.get('log')}")
+        except Exception:
+            continue
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lyricvid",
         description="Create Whisper-aligned Remotion lyric videos from any music folder.",
+        epilog="Extra commands: 'lyricvid styles' lists visual presets; 'lyricvid jobs' lists detached jobs; 'lyricvid upload --help' shows YouTube options.",
     )
     parser.add_argument(
         "folder",
@@ -864,9 +1297,40 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--language", default="en", help="Language code or 'auto' (default: en)")
     parser.add_argument(
         "--lyrics-source",
-        choices=["auto", "embedded", "sidecar", "whisper"],
+        choices=["auto", "ffprobe", "embedded", "sidecar", "whisper"],
         default="auto",
         help="Lyrics text source. auto prefers embedded metadata, then sidecar files (default: auto)",
+    )
+    parser.add_argument("--image", help="PNG/JPG/WebP to use as visual artwork")
+    parser.add_argument("--artist", help="Artist name shown in the video; defaults to embedded audio metadata")
+    parser.add_argument("--brand", default="Richmack Radio", help="Top-left brand label (default: Richmack Radio)")
+    parser.add_argument("--intro-seconds", type=float, default=0.0, help="Prepend a cover-art intro and delay audio/lyrics by this many seconds")
+    parser.add_argument("--outro-seconds", type=float, default=0.0, help="Append a cover-art outro after the song")
+    parser.add_argument("--outro-image", help="Optional PNG/JPG/WebP for the outro; defaults to the main --image")
+    parser.add_argument("--outro-text", default="Thanks for listening", help="Text shown on the outro")
+    parser.add_argument(
+        "--image-mode",
+        choices=["background", "card", "logo"],
+        default="background",
+        help="How --image is presented (default: background)",
+    )
+    parser.add_argument("--background-video", help="Explicit looping MP4/MOV/WebM/MKV background")
+    parser.add_argument("--voiceover", help="Optional narration/voice-over audio layered over the song")
+    parser.add_argument("--music-volume", type=float, default=1.0, help="Music volume 0.0-1.0")
+    parser.add_argument("--voiceover-volume", type=float, default=1.0, help="Voice-over volume 0.0-1.0")
+    parser.add_argument(
+        "--layout", choices=["cyber", "minimal", "terminal"], default="cyber",
+        help="Remotion visual layout (default: cyber)",
+    )
+    parser.add_argument(
+        "--style",
+        choices=["auto", *STYLE_PRESETS.keys()],
+        default="auto",
+        help="Preselected visual style. Overrides layout/theme/image-mode when set.",
+    )
+    parser.add_argument(
+        "--format", choices=["landscape", "short", "square"], default="landscape",
+        help="Video canvas: 1280x720, 1080x1920, or 1080x1080",
     )
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda", "auto"])
     parser.add_argument("--compute-type", default="int8", help="Default: int8; use float16 for CUDA")
@@ -886,11 +1350,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show which tracks have embedded/sidecar exact lyrics without transcribing",
     )
     parser.add_argument("--clean-cache", action="store_true", help="Remove LyricVid runtime and transcript caches")
+    parser.add_argument("--detach", "--background-job", action="store_true", help="Run independently in the background and write a job log")
     parser.add_argument("--version", action="version", version=f"lyricvid {__version__}")
     return parser
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "styles":
+        raise SystemExit(list_styles())
+
+    if len(sys.argv) > 1 and sys.argv[1] == "jobs":
+        raise SystemExit(list_background_jobs())
+
+    if ("--detach" in sys.argv or "--background-job" in sys.argv) and os.environ.get("LYRICVID_DETACHED") != "1":
+        raise SystemExit(detach_current_command())
+
+    if len(sys.argv) > 1 and sys.argv[1] == "upload":
+        args = youtube_upload_parser().parse_args(sys.argv[2:])
+        raise SystemExit(upload_youtube(args))
+
     args = build_parser().parse_args()
 
     if args.doctor:

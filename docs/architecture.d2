@@ -1,0 +1,57 @@
+direction: right
+
+input: "Audio / media input" {
+  shape: package
+  audio: "MP3 / WAV / M4A / FLAC"
+  art: "PNG / JPG / WebP"
+  narration: "Optional voice-over"
+  background: "Optional motion background"
+}
+
+lyrics: "Lyric intelligence" {
+  ffprobe: "ffprobe metadata probe"
+  mutagen: "Mutagen embedded lyrics"
+  sidecar: "Sidecar lyrics"
+  whisper: "faster-whisper acoustic timing"
+  align: "Exact-text sequence alignment"
+  qa: "alignment-report.json"
+
+  ffprobe -> align
+  mutagen -> align
+  sidecar -> align
+  whisper -> align
+  align -> qa
+}
+
+composition: "Remotion composition" {
+  intro: "Cover-art intro"
+  visual_preset: "Style preset / layout"
+  sections: "Verse / Chorus / Bridge labels"
+  karaoke: "Word-timed lyric animation"
+  outro: "Cover-art outro"
+  formats: "16:9 / 9:16 / 1:1"
+
+  intro -> visual_preset -> sections -> karaoke -> outro -> formats
+}
+
+runtime: "Runtime & delivery" {
+  node: "Node + Remotion"
+  ffmpeg: "FFmpeg / H.264"
+  jobs: "Detached background jobs"
+  youtube: "YouTube Data API v3"
+  oauth: "OAuth 2.0"
+
+  node -> ffmpeg -> jobs
+  oauth -> youtube
+}
+
+input.audio -> lyrics.ffprobe
+input.audio -> lyrics.whisper
+input.art -> composition.intro
+input.art -> composition.visual_preset
+input.art -> composition.outro
+input.narration -> composition.visual_preset
+input.background -> composition.visual_preset
+lyrics.align -> composition.karaoke
+composition.formats -> runtime.node
+runtime.jobs -> runtime.youtube

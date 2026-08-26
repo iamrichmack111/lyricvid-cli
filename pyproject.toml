@@ -4,16 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lyricvid"
-version = "0.2.0"
-description = "Create Whisper-aligned Remotion lyric videos from any music folder"
+version = "0.8.2"
+description = "Whisper-aligned Remotion lyric videos, visualizers, voice-over compositions, and YouTube publishing"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [{name = "LyricVid"}]
 dependencies = [
   "faster-whisper>=1.1,<2",
-  "mutagen>=1.47,<2"
+  "mutagen>=1.47,<2",
+  "google-api-python-client>=2.140,<3",
+  "google-auth-oauthlib>=1.2,<2",
+  "google-auth-httplib2>=0.2,<1"
 ]
+
+[project.urls]
+Homepage = "https://github.com/iamrichmack111/lyricvid-cli-new"
+Repository = "https://github.com/iamrichmack111/lyricvid-cli-new"
+Issues = "https://github.com/iamrichmack111/lyricvid-cli-new/issues"
 
 [project.optional-dependencies]
 dev = [

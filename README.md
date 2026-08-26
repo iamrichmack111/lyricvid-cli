@@ -1,142 +1,154 @@
 # LyricVid
 
-LyricVid is an installable CLI that turns a folder of songs into animated Remotion lyric videos. **Exact lyrics embedded in the media metadata are used as the displayed source of truth; Whisper is used to determine when those exact words occur in the song.**
+[![CI](https://github.com/iamrichmack111/lyricvid-cli-new/actions/workflows/ci.yml/badge.svg)](https://github.com/iamrichmack111/lyricvid-cli-new/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/iamrichmack111/lyricvid-cli-new?display_name=tag)](https://github.com/iamrichmack111/lyricvid-cli-new/releases)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![Remotion](https://img.shields.io/badge/Remotion-4.x-6C63FF)](https://www.remotion.dev/)
+[![faster-whisper](https://img.shields.io/badge/Whisper-faster--whisper-orange)](https://github.com/SYSTRAN/faster-whisper)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-required-007808)](https://ffmpeg.org/)
+[![YouTube API](https://img.shields.io/badge/YouTube-Data%20API%20v3-FF0000)](https://developers.google.com/youtube/v3)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-The CLI is installed separately from your music folders.
+**LyricVid is a terminal-driven Remotion video engine for Whisper-aligned lyric videos, album-art visualizers, narrated explainers, Shorts/Reels variants, detached rendering, and OAuth-based YouTube publishing.**
 
-## What changed in v0.2.0
+Instead of trusting speech recognition to rewrite your lyrics, LyricVid can preserve authored text from embedded metadata or sidecar files and use **faster-whisper as the acoustic timing layer**. ffprobe, Mutagen, sequence alignment, Remotion, FFmpeg, artwork, voice-over, and YouTube publishing are combined into one reproducible CLI workflow.
 
-- Reads embedded exact lyrics before falling back to text sidecars.
-- Supports MP3 ID3 `USLT` and `SYLT` lyric frames.
-- Supports M4A/MP4 `©lyr` and common FLAC/Vorbis `LYRICS` / `UNSYNCEDLYRICS` tags.
-- Preserves the exact authored spelling, punctuation, capitalization, and lyric line breaks in the video.
-- Uses faster-whisper word timestamps only as timing anchors.
-- Interpolates unmatched authored words between nearby Whisper anchors instead of replacing them with Whisper guesses.
-- Writes `lyric-videos/alignment-report.json` for alignment QA.
-- Adds `--lyrics-info` and `--lyrics-source` controls.
-- CI tests Python 3.10–3.12, exact-lyric extraction/alignment, package builds, and the bundled Remotion runtime.
-- Tagged releases build validated wheels/source distributions and attach them to GitHub Releases.
-- `push-github.sh` has been removed. This is now a normal Git repository you can push with standard Git commands.
+## Preview
 
-## Install after cloning/downloading
+After rendering a sample video, generate README frames with Playwright:
 
 ```bash
+npm install --save-dev playwright
+npx playwright install chromium
+node scripts/capture-readme-frames.mjs ./lyric-videos/your-video.mp4
+```
+
+| Intro | Mid-song lyric scene |
+| --- | --- |
+| ![LyricVid intro](docs/screenshots/intro.png) | ![LyricVid middle](docs/screenshots/middle.png) |
+
+The capture script also writes `docs/screenshots/outro.png` for outro documentation.
+
+## Why LyricVid
+
+- **Exact authored lyrics first.** ffprobe/embedded metadata and lyric sidecars can remain the displayed source of truth.
+- **Whisper for timing.** faster-whisper listens to the performed vocal and supplies acoustic anchors.
+- **Conservative lyric windows.** Non-overlapping line windows reduce brief between-line flashes; section markers such as `[Verse 1]` are treated as labels.
+- **Real Remotion composition.** Artwork intros, animated lyric scenes, looping backgrounds, voice-over, multiple layouts, presets, and outros.
+- **Multiple social formats.** Landscape YouTube, vertical Shorts/Reels/TikTok, and square output.
+- **Detached execution.** Long Whisper + Remotion jobs can survive terminal closure or an SSH disconnect.
+- **YouTube publishing.** OAuth 2.0, Markdown/text descriptions, tags, privacy controls, resumable uploads, and dry runs.
+- **Documentation as code.** D2 architecture source, Playwright screenshot automation, a full Unix man page, and CI/CD.
+
+## Architecture
+
+The source-of-truth diagram is [`docs/architecture.d2`](docs/architecture.d2). Render it with:
+
+```bash
+./scripts/render-docs.sh
+```
+
+That produces `docs/architecture.svg` when D2 is installed.
+
+```text
+Audio / artwork / narration
+          │
+          ├── ffprobe + Mutagen + sidecars
+          ├── faster-whisper acoustic timing
+          │              │
+          │      exact-text alignment
+          │              │
+          └──────────► Remotion
+                         │
+              intro → lyrics → outro
+                         │
+                       FFmpeg
+                         │
+              detached job / YouTube API
+```
+
+## Install
+
+Clone and install with pipx:
+
+```bash
+git clone git@github.com:iamrichmack111/lyricvid-cli-new.git
+cd lyricvid-cli-new
 ./install.sh
 ```
 
-The installer uses `pipx`, so `lyricvid` is exposed on your PATH while its Python environment remains isolated.
-
-## Install directly from GitHub
+Verify the stack:
 
 ```bash
-pipx install git+https://github.com/YOUR_USERNAME/lyricvid-cli.git
+lyricvid --version
+lyricvid styles
+lyricvid --doctor
 ```
 
-Upgrade later:
+The installer exposes `lyricvid` on your PATH while keeping Python dependencies isolated.
+
+### Man page
+
+A detailed manual is included at `docs/lyricvid.1`.
 
 ```bash
-pipx upgrade lyricvid
+man ./docs/lyricvid.1
 ```
 
-## Use anywhere
+On systems where local man directories are indexed, you can also copy it into a man1 directory and use `man lyricvid`.
 
-From inside an album directory:
+## Quick start
+
+Render every supported audio file in the current folder:
 
 ```bash
-cd ~/Music/MyAlbum
 lyricvid .
 ```
 
-Or from anywhere:
+Render a single-song folder with album artwork and a preset:
 
 ```bash
-lyricvid ~/Music/MyAlbum
+lyricvid . \
+  --style metro-cinematic \
+  --image cover.png \
+  --artist "Esoterica" \
+  --brand "Richmack Radio" \
+  --intro-seconds 5 \
+  --outro-seconds 7 \
+  --outro-text "COMPETE FOR YOU - ESOTERICA" \
+  --detach
 ```
 
-Output is written to:
+Output defaults to:
 
 ```text
-~/Music/MyAlbum/lyric-videos/
+<source-folder>/lyric-videos/
 ```
 
-## Exact lyric priority
+## Lyric intelligence
 
-Default `--lyrics-source auto` uses this order:
+Default `--lyrics-source auto` follows this policy:
 
 ```text
-1. Embedded media lyrics
-2. Matching sidecar lyric file
-3. Whisper transcription when no authored lyrics exist
+ffprobe/container lyric metadata
+        ↓
+embedded media lyrics (Mutagen)
+        ↓
+matching sidecar lyrics
+        ↓
+Whisper-only transcription if authored text is unavailable
 ```
 
-Supported embedded metadata includes:
+Whisper contributes **timing**, not necessarily final spelling. If the performed audio is recognized as `T Shark` but the authored lyric says `TShark`, LyricVid can display `TShark` while aligning it against Whisper's word timings.
 
-- MP3/ID3: `USLT`, `SYLT`
-- M4A/MP4: `©lyr`
-- FLAC/Ogg/Vorbis: `LYRICS`, `UNSYNCEDLYRICS`, and similar lyric fields
-
-Matching sidecars are also supported:
+Supported authored sources include MP3 ID3 `USLT`/`SYLT`, M4A/MP4 `©lyr`, FLAC/Ogg/Vorbis lyric fields, and sidecars such as:
 
 ```text
 Terraform.mp3
 Terraform.lyrics.txt
 ```
 
-## Inspect lyric metadata before rendering
-
-This does **not** load Whisper:
-
-```bash
-lyricvid ~/Music/MyAlbum --lyrics-info
-```
-
-Example output:
-
-```text
-✓ Terraform.mp3        embedded:USLT     410 words
-✓ Set FACL.mp3         embedded:USLT     273 words
-· Instrumental.mp3     Whisper only
-```
-
-Force a source when debugging:
-
-```bash
-lyricvid . --lyrics-source embedded
-lyricvid . --lyrics-source sidecar
-lyricvid . --lyrics-source whisper
-```
-
-## How alignment works
-
-```text
-Embedded exact lyrics
-        ↓
-Exact authored words + line breaks
-        ↓
-Whisper listens to the full song
-(VAD OFF for music)
-        ↓
-Whisper word timing anchors
-        ↓
-Sequence alignment
-        ↓
-Unmatched exact words interpolated
-between neighboring timing anchors
-        ↓
-Remotion karaoke rendering
-```
-
-Whisper can hear `T Shark` while the metadata says `TShark`; the video still displays **TShark**. Whisper contributes the timing, not the final spelling.
-
-## Useful commands
-
-Render:
-
-```bash
-lyricvid .
-```
-
-Inspect embedded lyrics only:
+Inspect lyric sources without loading Whisper:
 
 ```bash
 lyricvid . --lyrics-info
@@ -148,120 +160,280 @@ Transcribe/align without rendering:
 lyricvid . --transcribe-only
 ```
 
-Preview in Remotion Studio:
+Force fresh acoustic timing:
+
+```bash
+lyricvid . --retranscribe --force
+```
+
+Each run can produce `lyric-videos/alignment-report.json` for QA.
+
+## Visual styles
+
+List the installed presets:
+
+```bash
+lyricvid styles
+```
+
+Current presets:
+
+| Style | Best for |
+| --- | --- |
+| `cyberpunk` | High-energy neon lyric videos |
+| `terminal-green` | CLI / hacker / terminal themes |
+| `daemon-red` | Aggressive ops and infrastructure visuals |
+| `root-violet` | Dark violet cinematic treatment |
+| `system-amber` | Retro-computing / command-line visuals |
+| `network-teal` | Cloud and networking topics |
+| `neon-pink` | Social-first pop/R&B treatment |
+| `minimal-clean` | Clean centered artwork and reduced effects |
+| `podcast` | Narration, commentary, audio shows |
+| `explainer` | Diagrams, technical narration, lessons |
+| `metro-cinematic` | Album-art music video with restrained neon and metro mood |
+
+## Artwork, intros, and outros
+
+Use album art as the primary visual source:
+
+```bash
+lyricvid . --image cover.png --image-mode background
+```
+
+Available artwork modes:
+
+```text
+background
+card
+logo
+```
+
+Add an intro and outro:
+
+```bash
+lyricvid . \
+  --image cover.png \
+  --intro-seconds 5 \
+  --outro-seconds 7 \
+  --outro-text "THANKS FOR LISTENING"
+```
+
+`--outro-image` can use different artwork; otherwise the main image is reused.
+
+## Voice-over and motion backgrounds
+
+Narration over music:
+
+```bash
+lyricvid . \
+  --style explainer \
+  --voiceover narration.mp3 \
+  --music-volume 0.25 \
+  --voiceover-volume 1.0
+```
+
+Loop a motion background:
+
+```bash
+lyricvid . \
+  --background-video terminal-loop.mp4 \
+  --style cyberpunk
+```
+
+## Output formats
+
+Landscape YouTube:
+
+```bash
+lyricvid . --format landscape
+```
+
+YouTube Shorts / Reels / TikTok:
+
+```bash
+lyricvid . --format short
+```
+
+Square:
+
+```bash
+lyricvid . --format square
+```
+
+## Detached rendering
+
+Start a job that survives terminal closure:
+
+```bash
+lyricvid . --style metro-cinematic --detach
+```
+
+LyricVid prints the PID, job ID, log file, and an exact `tail -f` command. List recent jobs later with:
+
+```bash
+lyricvid jobs
+```
+
+Metadata and logs live under:
+
+```text
+~/.cache/lyricvid/jobs/
+```
+
+## YouTube upload
+
+Create OAuth Desktop credentials for a Google Cloud project with **YouTube Data API v3** enabled, then keep the credentials outside Git.
+
+Default paths relative to the current project are:
+
+```text
+.secrets/youtube-oauth.json
+.secrets/youtube-token.json
+```
+
+Upload publicly with metadata from a file:
+
+```bash
+lyricvid upload ./lyric-videos/song.mp4 \
+  --title "Esoterica - Compete for You | Official Lyric Video" \
+  --description-file description.md \
+  --tags "Esoterica,Compete for You,R&B,lyric video,Richmack Radio" \
+  --public
+```
+
+Without `--public` or `--unlisted`, uploads default to **private**.
+
+Preview metadata without uploading:
+
+```bash
+lyricvid upload ./lyric-videos/song.mp4 \
+  --title "Test" \
+  --description-file description.md \
+  --dry-run
+```
+
+After OAuth has been established, uploads can also run detached:
+
+```bash
+lyricvid upload ./lyric-videos/song.mp4 \
+  --title "Song" \
+  --description-file description.md \
+  --public \
+  --detach
+```
+
+### Why a new upload may initially look 360p
+
+YouTube can make the low-resolution transcode available before HD processing has completed. The original source upload is unchanged; 720p/1080p variants can appear later after YouTube finishes processing.
+
+## Remotion Studio
+
+Prepare the current project and open Remotion Studio:
 
 ```bash
 lyricvid . --studio
 ```
 
-Overwrite existing videos without forcing new Whisper transcription:
+This is useful for experimenting interactively before committing to a full render.
 
-```bash
-lyricvid . --force
-```
+## Quality and performance
 
-Force new Whisper timing data:
-
-```bash
-lyricvid . --retranscribe
-```
-
-Stronger model:
+Use a larger Whisper model when timing/recognition needs more acoustic accuracy:
 
 ```bash
 lyricvid . --model medium.en
 ```
 
-CUDA:
+CUDA example:
 
 ```bash
 lyricvid . --device cuda --compute-type float16
 ```
 
-Recursive discovery:
+H.264 quality is controlled with CRF:
 
 ```bash
-lyricvid ~/Music --recursive
+lyricvid . --crf 20
 ```
 
-Custom output:
+Lower CRF generally means higher quality and a larger MP4. The default is 24.
+
+## README screenshot automation with Playwright
+
+Instead of manually pausing a video and taking screenshots, generate reproducible documentation frames:
 
 ```bash
-lyricvid . -o ~/Videos/MyAlbum
+npm install --save-dev playwright
+npx playwright install chromium
+node scripts/capture-readme-frames.mjs ./lyric-videos/song.mp4
 ```
 
-Dependency check:
-
-```bash
-lyricvid --doctor
-```
-
-Clear cached Whisper/Remotion data:
-
-```bash
-lyricvid --clean-cache
-```
-
-## Alignment report
-
-Each render creates:
+The script launches Chromium headlessly, loads the actual MP4, seeks to representative intro/middle/outro timestamps, and writes:
 
 ```text
-lyric-videos/alignment-report.json
+docs/screenshots/intro.png
+docs/screenshots/middle.png
+docs/screenshots/outro.png
 ```
 
-It records the lyric source, direct Whisper anchor coverage, authored word count, and line count for every track. This makes low-confidence tracks easy to spot without watching every video end to end.
+Commit the images and GitHub will show the intro and middle frame directly in this README.
+
+## D2 documentation
+
+Architecture is maintained as D2 source:
+
+```text
+docs/architecture.d2
+```
+
+Render it:
+
+```bash
+./scripts/render-docs.sh
+```
+
+Keeping the diagram source in Git means architecture changes can be reviewed alongside code changes.
 
 ## CI/CD
 
-### CI
+`.github/workflows/ci.yml` validates Python code, tests lyric extraction/alignment, builds the package, smoke-tests the CLI, and verifies the bundled Remotion runtime.
 
-`.github/workflows/ci.yml` runs on pushes, pull requests, and manual dispatch. It:
+`.github/workflows/release.yml` handles tagged `v*` releases and distributable artifacts.
 
-- tests Python 3.10, 3.11, and 3.12
-- compiles the source
-- runs unit tests for embedded ID3 lyrics and exact-text alignment
-- builds wheel + source distribution
-- validates package metadata with `twine check`
-- installs the built wheel and smoke-tests the CLI
-- verifies Remotion package versions stay aligned
-- installs and bundles the Remotion runtime as a smoke test
-- uploads built distributions as GitHub Actions artifacts
+## Repository topics
 
-### CD
+Recommended GitHub topics:
 
-`.github/workflows/release.yml` runs on `v*` tags. It:
-
-- verifies the Git tag matches `pyproject.toml`
-- builds wheel + source distribution
-- validates both distributions
-- uploads build artifacts
-- creates a GitHub Release containing the installable packages
-
-Release v0.2.0:
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
+```text
+remotion
+faster-whisper
+ffmpeg
+lyric-video
+video-generation
+youtube-api
+python-cli
+karaoke
+speech-to-text
+music-visualizer
+content-automation
+playwright
+d2
 ```
 
-## Push to your own GitHub repo
+## Security
 
-There is no custom push script. Use standard Git:
-
-```bash
-git remote add origin git@github.com:YOUR_USERNAME/lyricvid-cli.git
-git push -u origin main
-```
-
-## Requirements
-
-- Python 3.10+
-- Node.js + npm
-- Linux or macOS recommended
-
-The first actual render installs the bundled Remotion Node runtime under `~/.cache/lyricvid`. Whisper transcripts are cached under the same LyricVid cache tree.
+Never commit OAuth client secrets or cached tokens. Keep `.secrets/` ignored. Treat generated YouTube tokens as account credentials.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+## Release tagging
+
+LyricVid includes a guarded release helper. After committing a version bump and confirming the working tree is clean, run:
+
+```bash
+./scripts/tag-release.sh
+```
+
+The script reads the version from `pyproject.toml`, creates an annotated `v<version>` tag, pushes the current branch and tag, and lets `.github/workflows/release.yml` build the distributions and create the GitHub Release. It refuses to tag a dirty working tree or overwrite an existing tag.
