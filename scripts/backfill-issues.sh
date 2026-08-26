@@ -52,4 +52,12 @@ create_closed_issue "Add CI validation and dependency security checks" "Validate
 create_closed_issue "Publish a GHCR container image with provenance" "Build and publish the LyricVid image to GHCR with version/SHA tags and artifact provenance attestations." "security,ci-cd"
 create_closed_issue "Expand README with secure YouTube production workflows" "Document installation, project layout, render QA, OAuth handling, upload workflows, detached operation, container usage, and troubleshooting." "docs,youtube"
 
+create_closed_issue "Add Dependabot dependency update automation" "Configured Dependabot for Python, Remotion npm, Docker, and GitHub Actions dependencies." "security,ci-cd"
+create_closed_issue "Add CodeQL static analysis" "Added CodeQL scanning for Python and JavaScript/TypeScript with security-extended queries." "security,ci-cd"
+create_closed_issue "Add Trivy and dependency review security gates" "Added Trivy filesystem scanning and pull-request dependency review for vulnerable dependencies and selected licenses." "security,ci-cd"
+create_closed_issue "Add OpenSSF Scorecard supply-chain analysis" "Added scheduled OpenSSF Scorecard analysis with SARIF upload." "security,ci-cd"
+create_closed_issue "Add real integration render smoke test" "Added scheduled/manual end-to-end rendering of a small media fixture followed by ffprobe codec, resolution, and audio validation." "ci-cd,video"
+create_closed_issue "Add release SBOM generation" "Added CycloneDX SBOM generation to tagged release assets." "security,ci-cd"
+create_closed_issue "Add repository contribution and governance controls" "Added CODEOWNERS, pull request template, issue forms, CONTRIBUTING.md, pre-commit hooks, and branch-protection configuration helper." "docs,security"
+
 echo "✓ Backfilled completed issues in $repo"

@@ -45,13 +45,18 @@ jobs:
       - name: Build distributions
         run: python -m build
 
+      - name: Generate CycloneDX SBOM
+        run: ./scripts/generate-sbom.sh dist
+
       - name: Validate distributions
-        run: twine check dist/*
+        run: twine check dist/*.whl dist/*.tar.gz
 
       - name: Attest package provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: 'dist/*'
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

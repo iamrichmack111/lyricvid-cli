@@ -10,6 +10,9 @@
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-required-007808)](https://ffmpeg.org/)
 [![YouTube API](https://img.shields.io/badge/YouTube-Data%20API%20v3-FF0000)](https://developers.google.com/youtube/v3)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CodeQL](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/codeql.yml/badge.svg)](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/codeql.yml)
+[![Supply Chain](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/supply-chain.yml/badge.svg)](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/supply-chain.yml)
+[![Integration Render](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/integration.yml/badge.svg)](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/integration.yml)
 
 **LyricVid is a terminal-driven video production pipeline for Whisper-aligned lyric videos, album-art visualizers, narrated explainers, social formats, detached rendering, and secure YouTube publishing.**
 
@@ -587,7 +590,7 @@ The repository includes an idempotent helper to create GitHub issues for major c
 
 It checks titles before creating issues so repeated runs do not intentionally duplicate the same backfill items.
 
-For a repository clone where the v0.9.0 files have been overlaid but not committed, create a **truthful present-day logical commit series** with:
+For a repository clone where the v0.9.1 files have been overlaid but not committed, create a **truthful present-day logical commit series** with:
 
 ```bash
 ./scripts/backfill-commits.sh
@@ -604,6 +607,39 @@ Update the description and topics using the authenticated GitHub CLI:
 ```
 
 Recommended topics include Remotion, faster-whisper, FFmpeg, lyric-video, video-generation, YouTube API, Python CLI, music visualizer, content automation, Playwright, D2, GHCR, and OAuth.
+
+
+## Repository security and supply-chain controls
+
+LyricVid treats generated media and YouTube OAuth material as local runtime data, not repository assets. CI/CD is intentionally capable of building, testing, scanning, packaging, and releasing the project without any Google credential.
+
+The repository now uses several complementary controls:
+
+- **Dependabot** monitors Python, the bundled Remotion npm runtime, Docker, and GitHub Actions dependencies.
+- **CodeQL** analyzes Python and JavaScript/TypeScript on pushes, pull requests, and a weekly schedule.
+- **Trivy** scans the repository for high/critical vulnerabilities, secrets, and configuration problems.
+- **Dependency Review** rejects pull requests that introduce high-severity vulnerable dependencies and selected incompatible licenses.
+- **OpenSSF Scorecard** evaluates supply-chain posture and uploads results to code scanning.
+- Existing **Bandit**, **pip-audit**, **npm audit**, and LyricVid's custom credential validator remain part of CI.
+- A weekly/manual **real render smoke test** generates a short MP4 and verifies H.264, resolution, and audio with ffprobe.
+- Tagged releases generate a **CycloneDX SBOM** in addition to package/container provenance.
+- `.pre-commit-config.yaml`, `CODEOWNERS`, structured issue templates, and a PR checklist make local and review-time validation repeatable.
+
+Install local contribution hooks with:
+
+```bash
+python -m pip install '.[dev]'
+pre-commit install
+pre-commit run --all-files
+```
+
+Repository administrators can apply the supplied main-branch protection baseline after the named checks have run at least once:
+
+```bash
+./scripts/configure-branch-protection.sh iamrichmack111/lyricvid-cli main
+```
+
+The helper disables force-push/deletion, requests linear history and resolved conversations, and requires the core validation/security checks. Review the resulting rules in GitHub Settings because available branch/ruleset features depend on repository visibility and plan.
 
 ## Release workflow
 

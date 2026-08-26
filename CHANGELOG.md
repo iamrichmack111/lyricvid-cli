@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.1
+
+- Added Dependabot coverage for Python, npm, Docker, and GitHub Actions.
+- Added CodeQL analysis for Python and JavaScript/TypeScript.
+- Added Trivy filesystem vulnerability, secret, and misconfiguration scanning.
+- Added pull-request dependency review and OpenSSF Scorecard workflow.
+- Added weekly/manual end-to-end render smoke test with ffprobe media-contract validation.
+- Added coverage collection, CODEOWNERS, issue/PR templates, CONTRIBUTING.md, and pre-commit hooks.
+- Added branch-protection configuration helper and CycloneDX SBOM generation for releases.
+- Bundled the illustrated wiki and vendored D2 icons with the release tree.
+
 ## 0.9.0
 
 - Added layered CI repository validation, Python dependency auditing with `pip-audit`, static security analysis with `bandit`, D2 compilation checks, and a tracked-secret guard.

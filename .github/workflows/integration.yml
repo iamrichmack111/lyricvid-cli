@@ -1,0 +1,68 @@
+name: Integration Render Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 8 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  render-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install FFmpeg and LyricVid
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Generate tiny media fixture
+        run: |
+          mkdir -p /tmp/lyricvid-smoke
+          ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i "sine=frequency=440:duration=4" \
+            -c:a libmp3lame /tmp/lyricvid-smoke/smoke.mp3
+          cat > /tmp/lyricvid-smoke/smoke.txt <<'TXT'
+          [Verse 1]
+          smoke test lyric
+          render pipeline
+          TXT
+      - name: Render real short composition
+        run: |
+          lyricvid /tmp/lyricvid-smoke \
+            --model tiny.en \
+            --lyrics-source sidecar \
+            --style minimal-clean \
+            --format landscape \
+            --jobs 1 \
+            --threads 2 \
+            --force
+      - name: Validate rendered media contract
+        run: |
+          VIDEO="$(find /tmp/lyricvid-smoke/lyric-videos -name '*.mp4' -type f | head -1)"
+          test -n "$VIDEO" -a -s "$VIDEO"
+          ffprobe -v error -select_streams v:0 \
+            -show_entries stream=codec_name,width,height \
+            -of default=nw=1 "$VIDEO" | tee /tmp/video.txt
+          grep -q 'codec_name=h264' /tmp/video.txt
+          grep -q 'width=1280' /tmp/video.txt
+          grep -q 'height=720' /tmp/video.txt
+          ffprobe -v error -select_streams a:0 \
+            -show_entries stream=codec_name \
+            -of default=nw=1 "$VIDEO" | tee /tmp/audio.txt
+          test -s /tmp/audio.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: integration-render-smoke
+          path: /tmp/lyricvid-smoke/lyric-videos/*.mp4
+          retention-days: 7

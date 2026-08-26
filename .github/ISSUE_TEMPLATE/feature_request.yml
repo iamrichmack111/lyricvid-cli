@@ -1,0 +1,17 @@
+name: Feature request
+description: Propose a LyricVid capability
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use case
+      description: What workflow should become possible or easier?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: CLI, rendering, publishing, or documentation behavior you have in mind.
