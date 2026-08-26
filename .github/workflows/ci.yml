@@ -85,7 +85,7 @@ jobs:
           pip-audit -r /tmp/runtime-requirements.txt
 
       - name: Static security analysis
-        run: bandit -q -r src/lyricvid -x '*/remotion_runtime/*'
+        run: bandit -q -r src/lyricvid -x '*/remotion_runtime/*' -ll
 
       - uses: actions/setup-node@v4
         with:
