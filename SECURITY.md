@@ -54,3 +54,16 @@ Container releases are published to GHCR with GitHub artifact provenance attesta
 ## Reporting a vulnerability
 
 Do not post credentials or exploitable private details in a public issue. Use GitHub's private vulnerability reporting/security-advisory mechanism when available for the repository. Otherwise contact the repository owner privately and include only the minimum reproduction details needed to understand the problem.
+
+## Repository-specific Secret Guard
+
+In addition to GitHub secret scanning and push protection, LyricVid ships a local/CI scanner tailored to the credentials this project is most likely to handle:
+
+```bash
+python scripts/secret-guard.py --self-test
+python scripts/secret-guard.py
+```
+
+It rejects tracked `.secrets/` directories, YouTube OAuth/token JSON files, Google OAuth client/refresh/access secrets, private keys, Google API keys, AWS keys, GitHub tokens, Stripe/OpenAI-style secret keys, service-account key material, and database URLs containing embedded passwords. Google OAuth client IDs by themselves are identifiers rather than secrets and do not fail the scan unless secret-bearing fields are present in the same credential-like document.
+
+A positive finding should be treated as a potential exposure: revoke or rotate the credential first, then remove it from the repository and Git history. Deleting it only in a later commit is not sufficient.

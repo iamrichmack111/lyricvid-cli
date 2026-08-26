@@ -9,6 +9,7 @@
 [![faster-whisper](https://img.shields.io/badge/Whisper-faster--whisper-orange)](https://github.com/SYSTRAN/faster-whisper)
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-required-007808)](https://ffmpeg.org/)
 [![YouTube API](https://img.shields.io/badge/YouTube-Data%20API%20v3-FF0000)](https://developers.google.com/youtube/v3)
+[![Secret Guard](https://img.shields.io/badge/security-secret%20guard-2ea44f?logo=github)](SECURITY.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CodeQL](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/codeql.yml/badge.svg)](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/codeql.yml)
 [![Supply Chain](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/supply-chain.yml/badge.svg)](https://github.com/iamrichmack111/lyricvid-cli/actions/workflows/supply-chain.yml)
@@ -400,6 +401,17 @@ Run the same repository credential check used by CI:
 ```
 
 If a real credential is ever committed, deleting the file in a later commit is not sufficient: rotate/revoke it and remove it from Git history before publishing.
+
+## Repository-specific credential guard
+
+LyricVid includes a second, project-aware credential scanner in addition to GitHub secret scanning/push protection and the generic CI checks:
+
+```bash
+python scripts/secret-guard.py --self-test
+python scripts/secret-guard.py
+```
+
+It is specifically designed to catch accidentally tracked YouTube/Google OAuth JSON and cached tokens, refresh/access secrets, private keys, cloud/API tokens, and database URLs containing embedded passwords. OAuth client IDs alone are not treated as secrets. See [SECURITY.md](SECURITY.md) for remediation guidance.
 
 ## Recommended YouTube workflow
 

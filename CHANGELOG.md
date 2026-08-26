@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2
+
+- Add a repository-specific Secret Guard for YouTube/Google OAuth credentials, cached tokens, private keys, cloud/API keys, and embedded database passwords.
+- Add Secret Guard self-tests and run the scanner in required CI validation.
+- Document repo-specific credential remediation and add a security badge.
+- Fix the Trivy action reference to the valid `v0.36.0` tag.
+
 ## 0.9.1
 
 - Added Dependabot coverage for Python, npm, Docker, and GitHub Actions.
