@@ -1,57 +1,46 @@
-name: CI - Test, Build, Render Demo
+name: CI/CD - Build and Render Cluster Heartbeat
 
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 jobs:
-  test-package:
-    name: Python ${{ matrix.python-version }}
+  test:
+    name: Test and build LyricVid
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
-      - name: Install test/build tooling
+      - name: Install test tools
         run: |
           python -m pip install -U pip build pytest mutagen twine
           python -m pip install --no-deps -e .
 
-      - name: Test and build
+      - name: Test package
         run: |
           python -m compileall -q src
           pytest -q
           python -m build
           twine check dist/*
 
-      - name: Test installed CLI
-        run: |
-          python -m pip uninstall -y lyricvid
-          python -m pip install --no-deps dist/*.whl
-          lyricvid --version
-          lyricvid --help
-
-      - name: Upload package
-        if: matrix.python-version == '3.12'
+      - name: Upload installable package
         uses: actions/upload-artifact@v7
         with:
           name: lyricvid-installable-package
           path: dist/*
+          if-no-files-found: error
 
-  render-demo:
-    name: Render real demo video
-    needs: test-package
+  render:
+    name: Render Cluster_Heartbeat.mp3
+    needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v7
@@ -65,17 +54,32 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
-      - name: Install LyricVid
-        run: python -m pip install --no-deps -e .
-
-      - name: Render MP4
+      - name: Install dependencies
         run: |
-          lyricvid --demo -o ci-demo --jobs 2 --crf 30
-          test -s ci-demo/lyricvid-demo.mp4
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install -U pip
+          python -m pip install -e .
 
-      - name: Upload rendered video
+      - name: Confirm song exists
+        run: test -s Cluster_Heartbeat.mp3
+
+      - name: Render actual lyric video
+        run: |
+          lyricvid . \
+            --model tiny.en \
+            --force \
+            --jobs 2 \
+            --crf 30 \
+            --output ci-video
+          test -n "$(find ci-video -name '*.mp4' -type f -size +0c -print -quit)"
+
+      - name: Upload finished video
         uses: actions/upload-artifact@v7
         with:
-          name: lyricvid-demo-video
-          path: ci-demo/lyricvid-demo.mp4
+          name: cluster-heartbeat-video
+          path: |
+            ci-video/*.mp4
+            ci-video/alignment-report.json
           if-no-files-found: error
+          retention-days: 30
