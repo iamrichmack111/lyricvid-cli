@@ -1,0 +1,24 @@
+direction: right
+title: "Lyric Source Resolution" { shape: text; near: top-center; style.font-size: 30 }
+audio: "Audio" {
+  icon: ../icons/music.svg
+}
+ffprobe: "ffprobe Tags" {
+  icon: ../icons/server.svg
+}
+mutagen: "Mutagen Tags" {
+  icon: ../icons/code.svg
+}
+sidecar: "Sidecar Lyrics" {
+  icon: ../icons/document.svg
+}
+whisper: "Whisper Words" {
+  icon: ../icons/code.svg
+}
+align: "Authored Text Alignment" {
+  icon: ../icons/document.svg
+}
+audio -> ffprobe -> align
+audio -> mutagen -> align
+sidecar -> align
+audio -> whisper -> align

@@ -1,0 +1,21 @@
+direction: right
+title: "Media Layers" { shape: text; near: top-center; style.font-size: 30 }
+song: "Music" {
+  icon: ../icons/music.svg
+}
+art: "Artwork" {
+  icon: ../icons/image.svg
+}
+bg: "Background Video" {
+  icon: ../icons/video.svg
+}
+vo: "Voice-over" {
+  icon: ../icons/music.svg
+}
+comp: "Remotion Composition" {
+  icon: ../icons/video.svg
+}
+song -> comp
+art -> comp
+bg -> comp
+vo -> comp

@@ -1,0 +1,22 @@
+direction: right
+title: "LyricVid system map" { shape: text; near: top-center; style.font-size: 30 }
+inputs: "Audio + Artwork" {
+  icon: ../icons/music.svg
+}
+lyrics: "Lyric Intelligence" {
+  icon: ../icons/document.svg
+}
+render: "Remotion + FFmpeg" {
+  icon: ../icons/video.svg
+}
+jobs: "Detached Jobs" {
+  icon: ../icons/server.svg
+}
+youtube: "YouTube Publishing" {
+  icon: ../icons/cloud.svg
+}
+docs: "Docs + D2" {
+  icon: ../icons/repo.svg
+}
+inputs -> lyrics -> render -> jobs -> youtube
+render -> docs

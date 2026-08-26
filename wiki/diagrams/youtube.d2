@@ -1,0 +1,20 @@
+direction: right
+title: "YouTube Publishing Boundary" { shape: text; near: top-center; style.font-size: 30 }
+mp4: "Validated MP4" {
+  icon: ../icons/video.svg
+}
+meta: "Title + Description + Tags" {
+  icon: ../icons/document.svg
+}
+oauth: "Local OAuth Token" {
+  icon: ../icons/lock.svg
+}
+api: "YouTube Data API" {
+  icon: ../icons/cloud.svg
+}
+channel: "Channel Video" {
+  icon: ../icons/video.svg
+}
+mp4 -> api
+meta -> api
+oauth -> api -> channel

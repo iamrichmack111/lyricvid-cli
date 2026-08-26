@@ -1,0 +1,19 @@
+direction: right
+title: "Authored Text + Acoustic Timing" { shape: text; near: top-center; style.font-size: 30 }
+authored: "Authored Tokens" {
+  icon: ../icons/document.svg
+}
+detected: "Whisper Word Times" {
+  icon: ../icons/music.svg
+}
+norm: "Normalize + Match" {
+  icon: ../icons/code.svg
+}
+anchors: "Timing Anchors" {
+  icon: ../icons/server.svg
+}
+lines: "Stable Lyric Windows" {
+  icon: ../icons/video.svg
+}
+authored -> norm
+detected -> norm -> anchors -> lines

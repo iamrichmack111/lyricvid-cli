@@ -1,0 +1,18 @@
+direction: right
+title: "Installation" { shape: text; near: top-center; style.font-size: 30 }
+src: "Source / Release" {
+  icon: ../icons/repo.svg
+}
+pipx: "pipx + Python" {
+  icon: ../icons/code.svg
+}
+deps: "Node + FFmpeg" {
+  icon: ../icons/server.svg
+}
+doctor: "lyricvid --doctor" {
+  icon: ../icons/lock.svg
+}
+ready: "Ready to Render" {
+  icon: ../icons/video.svg
+}
+src -> pipx -> deps -> doctor -> ready

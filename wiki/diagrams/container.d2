@@ -1,0 +1,18 @@
+direction: right
+title: "Container Delivery" { shape: text; near: top-center; style.font-size: 30 }
+source: "Repository" {
+  icon: ../icons/repo.svg
+}
+docker: "Docker Build" {
+  icon: ../icons/server.svg
+}
+scan: "Validation" {
+  icon: ../icons/lock.svg
+}
+ghcr: "GHCR Package" {
+  icon: ../icons/cloud.svg
+}
+runtime: "Mounted Workdir" {
+  icon: ../icons/video.svg
+}
+source -> docker -> scan -> ghcr -> runtime

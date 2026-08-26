@@ -1,0 +1,25 @@
+direction: right
+title: "CLI Surface" { shape: text; near: top-center; style.font-size: 30 }
+cli: "lyricvid" {
+  icon: ../icons/code.svg
+}
+render: "Render Command" {
+  icon: ../icons/video.svg
+}
+styles: "styles" {
+  icon: ../icons/image.svg
+}
+jobs: "jobs" {
+  icon: ../icons/server.svg
+}
+upload: "upload" {
+  icon: ../icons/cloud.svg
+}
+doctor: "doctor / info" {
+  icon: ../icons/lock.svg
+}
+cli -> render
+cli -> styles
+cli -> jobs
+cli -> upload
+cli -> doctor

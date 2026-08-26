@@ -1,0 +1,20 @@
+direction: right
+title: "Detached Job Lifecycle" { shape: text; near: top-center; style.font-size: 30 }
+shell: "Terminal" {
+  icon: ../icons/terminal.svg
+}
+spawn: "Detached Process" {
+  icon: ../icons/server.svg
+}
+log: "Job Log" {
+  icon: ../icons/document.svg
+}
+work: "Whisper / Render / Upload" {
+  icon: ../icons/video.svg
+}
+done: "Completed Job" {
+  icon: ../icons/lock.svg
+}
+shell -> spawn -> work -> done
+spawn -> log
+work -> log

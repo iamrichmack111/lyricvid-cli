@@ -1,0 +1,19 @@
+direction: right
+title: "Developer Workflow" { shape: text; near: top-center; style.font-size: 30 }
+code: "Python + TS Source" {
+  icon: ../icons/code.svg
+}
+test: "pytest / validation" {
+  icon: ../icons/lock.svg
+}
+docs: "D2 + Man + Wiki" {
+  icon: ../icons/document.svg
+}
+commit: "Git Commit" {
+  icon: ../icons/repo.svg
+}
+ci: "CI" {
+  icon: ../icons/server.svg
+}
+code -> test -> commit -> ci
+code -> docs -> commit

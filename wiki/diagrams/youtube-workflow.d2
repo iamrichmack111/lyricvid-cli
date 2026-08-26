@@ -1,0 +1,24 @@
+direction: right
+title: "Recommended YouTube Workflow" { shape: text; near: top-center; style.font-size: 30 }
+assets: "Assets" {
+  icon: ../icons/music.svg
+}
+align: "Lyric QA" {
+  icon: ../icons/document.svg
+}
+render: "Detached Render" {
+  icon: ../icons/video.svg
+}
+local: "Local Review" {
+  icon: ../icons/terminal.svg
+}
+dry: "Metadata Dry Run" {
+  icon: ../icons/lock.svg
+}
+private: "Private Upload" {
+  icon: ../icons/cloud.svg
+}
+public: "Public Release" {
+  icon: ../icons/video.svg
+}
+assets -> align -> render -> local -> dry -> private -> public

@@ -1,0 +1,20 @@
+direction: right
+title: "Visual Preset System" { shape: text; near: top-center; style.font-size: 30 }
+preset: "Style Preset" {
+  icon: ../icons/image.svg
+}
+layout: "Layout" {
+  icon: ../icons/video.svg
+}
+theme: "Theme" {
+  icon: ../icons/image.svg
+}
+mode: "Image Mode" {
+  icon: ../icons/image.svg
+}
+comp: "Composition" {
+  icon: ../icons/video.svg
+}
+preset -> layout -> comp
+preset -> theme -> comp
+preset -> mode -> comp

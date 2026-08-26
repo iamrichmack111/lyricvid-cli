@@ -1,0 +1,22 @@
+direction: right
+title: "CI/CD Pipeline" { shape: text; near: top-center; style.font-size: 30 }
+push: "Git Push" {
+  icon: ../icons/repo.svg
+}
+tests: "Tests + Validation" {
+  icon: ../icons/lock.svg
+}
+build: "Package + Container" {
+  icon: ../icons/server.svg
+}
+ghcr: "GHCR" {
+  icon: ../icons/cloud.svg
+}
+tag: "Version Tag" {
+  icon: ../icons/repo.svg
+}
+release: "GitHub Release" {
+  icon: ../icons/video.svg
+}
+push -> tests -> build -> ghcr
+tests -> tag -> release

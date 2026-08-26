@@ -1,0 +1,29 @@
+direction: right
+title: "Runtime Architecture" { shape: text; near: top-center; style.font-size: 30 }
+media: "Media Inputs" {
+  icon: ../icons/music.svg
+}
+probe: "ffprobe + Mutagen" {
+  icon: ../icons/server.svg
+}
+whisper: "faster-whisper" {
+  icon: ../icons/code.svg
+}
+align: "Sequence Alignment" {
+  icon: ../icons/document.svg
+}
+remotion: "Remotion" {
+  icon: ../icons/video.svg
+}
+ffmpeg: "FFmpeg H.264" {
+  icon: ../icons/server.svg
+}
+jobs: "Detached Worker" {
+  icon: ../icons/server.svg
+}
+yt: "YouTube API" {
+  icon: ../icons/cloud.svg
+}
+media -> probe -> align
+media -> whisper -> align
+align -> remotion -> ffmpeg -> jobs -> yt

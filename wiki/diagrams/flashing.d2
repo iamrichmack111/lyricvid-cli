@@ -1,0 +1,18 @@
+direction: right
+title: "Lyric Flash Prevention" { shape: text; near: top-center; style.font-size: 30 }
+anchors: "Reliable Anchors" {
+  icon: ../icons/music.svg
+}
+infer: "Infer Missing Spans" {
+  icon: ../icons/code.svg
+}
+guard: "Suppress Tiny Spans" {
+  icon: ../icons/lock.svg
+}
+window: "Non-overlap Windows" {
+  icon: ../icons/server.svg
+}
+screen: "Stable Display" {
+  icon: ../icons/video.svg
+}
+anchors -> infer -> guard -> window -> screen

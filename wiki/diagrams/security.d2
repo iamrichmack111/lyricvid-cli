@@ -1,0 +1,21 @@
+direction: right
+title: "Security Boundaries" { shape: text; near: top-center; style.font-size: 30 }
+repo: "Git Repository" {
+  icon: ../icons/repo.svg
+}
+ci: "CI Secret Scan" {
+  icon: ../icons/lock.svg
+}
+local: "Local .secrets" {
+  icon: ../icons/lock.svg
+}
+oauth: "Google OAuth" {
+  icon: ../icons/cloud.svg
+}
+image: "Container Image" {
+  icon: ../icons/server.svg
+}
+repo -> ci
+local -> oauth
+repo -> image
+ci -> image
