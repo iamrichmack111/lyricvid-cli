@@ -1,4 +1,4 @@
-.TH LYRICVID 1 "August 2026" "LyricVid 0.8.2" "User Commands"
+.TH LYRICVID 1 "August 2026" "LyricVid 0.9.0" "User Commands"
 .SH NAME
 lyricvid \- create Whisper-aligned Remotion lyric videos and upload them to YouTube
 .SH SYNOPSIS
@@ -288,3 +288,17 @@ The repository contains docs/architecture.d2. Render it with scripts/render-docs
 ffmpeg(1), ffprobe(1), node(1), npm(1), python3(1)
 .SH LICENSE
 MIT.
+
+.SH SECURITY VALIDATION
+LyricVid deliberately keeps Google OAuth credentials out of source control and CI/CD.
+Run
+.B ./scripts/validate-no-secrets.sh
+before pushing. The CI workflow also rejects tracked .secrets directories, OAuth client JSON/token files, and several high-confidence credential patterns. If a real credential is ever committed, rotate or revoke it and remove it from Git history; deleting it in a later commit is not sufficient.
+.SH CONTAINER IMAGE
+The repository can publish a container package to
+.B ghcr.io/iamrichmack111/lyricvid-cli
+using the Container workflow. Mount working media into /work at runtime. Do not bake OAuth credentials into the image or Docker build context.
+.SH RECOMMENDED YOUTUBE WORKFLOW
+Inspect lyric sources, run transcription/alignment QA, render locally, review the generated MP4, validate metadata with --dry-run, upload privately for the first OAuth/production test, and only then run a public upload. YouTube may expose a 360p transcode before its HD versions finish processing; inspect the local source resolution with ffprobe before diagnosing render quality.
+.SH REPOSITORY AUTOMATION
+The repository includes scripts for GitHub metadata, closed issue backfill, logical present-day commit backfill, D2 rendering, Playwright frame capture, credential validation, and guarded release tagging.
