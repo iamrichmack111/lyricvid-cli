@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0
+
+- Added layered CI repository validation, Python dependency auditing with `pip-audit`, static security analysis with `bandit`, D2 compilation checks, and a tracked-secret guard.
+- Added Docker packaging plus GHCR publishing with branch/tag/SHA tags and build provenance attestations.
+- Added `.dockerignore` protections so source media, OAuth material, tokens, virtualenvs, and render outputs never enter the container build context.
+- Rebuilt README as a detailed operator guide covering installation, lyric policy, artwork, detached jobs, QA, secure OAuth handling, recommended private-to-public YouTube workflow, HD-processing checks, containers, docs tooling, CI/CD, and troubleshooting.
+- Corrected project/repository metadata from the obsolete `lyricvid-cli-new` path to `iamrichmack111/lyricvid-cli`.
+- Added idempotent GitHub completed-issue backfill tooling for the major capabilities developed through v0.9.0.
+- Added a logical backfill commit helper that groups current changes without forging historical timestamps or authorship.
+- Bumped package/runtime version consistency to 0.9.0.
+
 ## 0.8.2
 
 - Fixed `docs/architecture.d2` by replacing the reserved D2 identifier `style` with `visual_preset`, so architecture rendering no longer fails on reserved-keyword edge errors.
