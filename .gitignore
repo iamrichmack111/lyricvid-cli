@@ -5,6 +5,9 @@ __pycache__/
 build/
 dist/
 .DS_Store
+.pytest_cache/
+
+# Source media and generated video
 *.mp3
 *.wav
 *.m4a
@@ -14,14 +17,16 @@ dist/
 *.opus
 *.mp4
 lyric-videos/
+
+# Node / Playwright
 node_modules/
-
-.secrets/
-youtube-token.json
-# Local OAuth credentials
-.secrets/
-youtube-token.json
-
-# Playwright browser artifacts
 playwright-report/
 test-results/
+
+# Credentials and OAuth state — NEVER COMMIT
+.secrets/
+**/.secrets/
+client_secret_*.json
+youtube-oauth.json
+youtube-token.json
+credentials.json

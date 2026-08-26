@@ -1,85 +1,150 @@
-name: CI/CD - Build and Render Cluster Heartbeat
+name: CI - Validate, Test, Build
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    name: Test and build LyricVid
+  validate:
+    name: Validate repository
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Validate shell scripts
+        run: |
+          find . -type f -name '*.sh' -not -path './.git/*' -print0 \
+            | xargs -0 -n1 bash -n
+
+      - name: Validate no credentials are tracked
+        run: ./scripts/validate-no-secrets.sh
+
+      - name: Validate package metadata
+        run: |
+          python - <<'PY'
+          import pathlib, re
+          pyproject = pathlib.Path('pyproject.toml').read_text(encoding='utf-8')
+          init = pathlib.Path('src/lyricvid/__init__.py').read_text(encoding='utf-8')
+          package_version = re.search(r'^version = "([^"]+)"', pyproject, re.M).group(1)
+          init_version = re.search(r'__version__\s*=\s*["\']([^"\']+)', init).group(1)
+          if package_version != init_version:
+              raise SystemExit(f'version mismatch: pyproject={package_version}, __init__={init_version}')
+          print('Version:', package_version)
+          PY
+
+      - name: Validate D2 source when available
+        run: |
+          curl -fsSL https://d2lang.com/install.sh | sh -s -- --prefix "$HOME/.local"
+          "$HOME/.local/bin/d2" --version
+          "$HOME/.local/bin/d2" docs/architecture.d2 /tmp/architecture.svg
+          test -s /tmp/architecture.svg
+
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install security tooling
+        run: python -m pip install --upgrade pip pip-audit bandit
+
+      - name: Audit Python dependencies
+        run: |
+          python - <<'PY' > /tmp/runtime-requirements.txt
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              project = tomllib.load(f)
+          for dep in project['project']['dependencies']:
+              print(dep)
+          PY
+          pip-audit -r /tmp/runtime-requirements.txt
+
+      - name: Static security analysis
+        run: bandit -q -r src/lyricvid -x '*/remotion_runtime/*'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Audit Remotion runtime dependencies
+        working-directory: src/lyricvid/remotion_runtime
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit --omit=dev --audit-level=high
+
+  test:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
       - name: Install test tools
         run: |
-          python -m pip install -U pip build pytest mutagen twine
-          python -m pip install --no-deps -e .
+          python -m pip install --upgrade pip build pytest twine
+          python -m pip install -e .
 
-      - name: Test package
+      - name: Compile and test
         run: |
           python -m compileall -q src
           pytest -q
+
+      - name: Build and validate distributions
+        if: matrix.python == '3.12'
+        run: |
           python -m build
           twine check dist/*
 
       - name: Upload installable package
-        uses: actions/upload-artifact@v7
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
         with:
-          name: lyricvid-installable-package
+          name: lyricvid-python-package
           path: dist/*
           if-no-files-found: error
 
-  render:
-    name: Render Cluster_Heartbeat.mp3
-    needs: test
+  container-validate:
+    name: Container validation
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build container without publishing
+        uses: docker/build-push-action@v6
         with:
-          python-version: "3.12"
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          package-manager-cache: false
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          python -m pip install -U pip
-          python -m pip install -e .
-
-      - name: Confirm song exists
-        run: test -s Cluster_Heartbeat.mp3
-
-      - name: Render actual lyric video
-        run: |
-          lyricvid . \
-            --model tiny.en \
-            --force \
-            --jobs 2 \
-            --crf 30 \
-            --output ci-video
-          test -n "$(find ci-video -name '*.mp4' -type f -size +0c -print -quit)"
-
-      - name: Upload finished video
-        uses: actions/upload-artifact@v7
-        with:
-          name: cluster-heartbeat-video
-          path: |
-            ci-video/*.mp4
-            ci-video/alignment-report.json
-          if-no-files-found: error
-          retention-days: 30
+          context: .
+          push: false
+          tags: lyricvid:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
